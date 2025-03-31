@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Detalle de Película</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #111;
+      color: #f5f5f5;
+      margin: 0;
+      padding: 30px;
+    }
+
+    .container {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 40px;
+    }
+
+    .poster {
+      max-width: 300px;
+      border-radius: 10px;
+    }
+
+    .info {
+      flex: 1;
+    }
+
+    .info h1 {
+      margin-top: 0;
+    }
+
+    .info p {
+      line-height: 1.5;
+    }
+
+    .highlight {
+      color: orange;
+    }
+
+    .btn {
+      background: transparent;
+      color: #0df;
+      border: 1px solid #0df;
+      padding: 8px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    .cast-section {
+      margin-top: 40px;
+    }
+
+    .cast-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .actor-card {
+      width: 120px;
+      text-align: center;
+    }
+
+    .actor-card img {
+      width: 100%;
+      border-radius: 8px;
+    }
+
+    .star-rating {
+      font-size: 2rem;
+      color: gold;
+      cursor: pointer;
+    }
+
+    .star-rating span {
+      color: lightgray;
+      display: inline-block;
+      transition: color 0.2s;
+    }
+    
+    .star-rating span {
+      color: lightgray;
+      display: inline-block;
+      transition: color 0.2s;
+    }
+    
+    .star-rating span:hover,
+    .star-rating span:hover ~ span {
+      color: lightgray;
+    }
+    
+    .star-rating:hover span {
+      color: gold;
+    }
+    
+    
+  </style>
+</head>
+<body>
+  <header style="background-color: #222; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center;">
+    <span style="color: orange; font-weight: bold;">🎬 MovieSRI</span>
+    <div id="usuario-info" style="color: #f5f5f5;"></div>
+  </header>
+  
+  <div class="container">
+    <img id="poster" class="poster" src="" alt="Poster" />
+    <div class="info">
+      <h1 id="title">Cargando...</h1>
+      <p><strong>Sinopsis:</strong> <span id="overview"></span></p>
+      <p><strong>Fecha de estreno:</strong> <span id="release-date" class="highlight"></span></p>
+      <button class="btn" onclick="history.back()">Regresar</button>
+    </div>
+  </div>
+
+  <h2>Reparto principal</h2>
+  <div class="cast-section">
+    <div class="cast-grid" id="cast-list"></div>
+  </div>
+
+  <h2>Tu valoración:</h2>
+  <div class="star-rating" id="user-rating">★★★★★</div>
+
+  <script>
+    const apiKey = '9d1bbbbde65732d68b3d9fafccd663c3';
+    const urlParams = new URLSearchParams(window.location.search);
+    const movieId = urlParams.get('id');
+
+    async function fetchMovieDetails() {
+      const res = await fetch(`https://api.themoviedb.org/3/movie/${movieId}?api_key=${apiKey}&language=es-ES`);
+      const movie = await res.json();
+
+      document.getElementById('title').innerText = movie.title;
+      document.getElementById('poster').src = `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+      document.getElementById('release-date').innerText = movie.release_date;
+      document.getElementById('overview').innerText = movie.overview;
+      const genreNames = movie.genres.map(g => g.name).join(', ');
+      const genresP = document.createElement('p');
+      genresP.innerHTML = `<strong>Género:</strong> <span class="highlight">${genreNames}</span>`;
+      document.querySelector('.info').appendChild(genresP);
+    }
+
+    async function fetchCast() {
+      const res = await fetch(`https://api.themoviedb.org/3/movie/${movieId}/credits?api_key=${apiKey}&language=es-ES`);
+      const data = await res.json();
+      const cast = data.cast.slice(0, 6); //  6 actores
+      const list = document.getElementById('cast-list');
+
+      cast.forEach(actor => {
+        const card = document.createElement('div');
+        card.className = 'actor-card';
+
+        const profile = actor.profile_path
+          ? `https://image.tmdb.org/t/p/w185${actor.profile_path}`
+          : 'https://via.placeholder.com/120x180?text=Sin+foto';
+
+        card.innerHTML = `
+          <img src="${profile}" alt="${actor.name}" />
+          <p><strong>${actor.name}</strong></p>
+          <p style="font-size: 0.9em;">${actor.character}</p>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    function setupRatingStars() {
+        const container = document.getElementById('user-rating');
+        container.innerHTML = '';
+      
+        for (let i = 1; i <= 5; i++) {
+          const span = document.createElement('span');
+          span.innerText = '★';
+          span.dataset.value = i;
+          span.style.padding = '0 5px';
+          container.appendChild(span);
+        }
+      
+        container.addEventListener('click', (e) => {
+          if (e.target.tagName === 'SPAN') {
+            const rating = e.target.dataset.value;
+            const usuario = localStorage.getItem('usuario');
+      
+            if (!usuario) {
+              alert("No hay usuario registrado.");
+              return;
+            }
+      
+            const payload = {
+              usuario,
+              valoraciones: {
+                [movieId]: parseInt(rating)
+              }
+            };
+      
+            fetch("http://localhost:5000/guardar_valoraciones", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            })
+            .then(res => res.json())
+            .then(data => {
+              alert(data.mensaje || "Valoración guardada");
+            })
+            .catch(err => {
+              console.error("Error al guardar valoración", err);
+            });
+          }
+        });
+      }
+      
+
+    fetchMovieDetails();
+    fetchCast();
+    setupRatingStars();
+  </script>
+
+  <script>
+    function actualizarHeaderUsuario() {
+      const usuario = localStorage.getItem('usuario');
+      const contenedor = document.getElementById('usuario-info');
+  
+      if (usuario) {
+        contenedor.innerHTML = `Hola, <strong>${usuario}</strong> 
+          <button onclick="logout()" style="margin-left:10px; padding: 4px 10px; cursor:pointer; border-radius:5px; background:#444; color:white; border:none;">
+            Cerrar sesión
+          </button>`;
+      } else {
+        const nuevo = prompt("Ingresa tu nombre:");
+        if (nuevo) {
+          localStorage.setItem('usuario', nuevo);
+          actualizarHeaderUsuario();
+        } else {
+          alert("Debes ingresar un nombre para continuar.");
+          location.reload();
+        }
+      }
+    }
+  
+    function logout() {
+      localStorage.removeItem('usuario');
+      location.reload();
+    }
+  
+    actualizarHeaderUsuario();
+  </script>
+   
+</body>
+</html>

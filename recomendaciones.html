@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Recomendaciones personalizadas</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #111;
+      color: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1, h2 {
+      text-align: center;
+      color: orange;
+    }
+
+    .recomendaciones-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .movie-card {
+      background-color: #1c1c1c;
+      border-radius: 10px;
+      width: 200px;
+      padding: 10px;
+      text-align: center;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      cursor: pointer;
+    }
+
+    .movie-card:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 10px orange;
+    }
+
+    .movie-card img {
+      width: 100%;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+    <header style="background-color: #222; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: orange; font-weight: bold;">🎬 MovieSRI</span>
+        <div style="color: #f5f5f5;">
+          Usuario: 
+          <select id="selector-usuario" style="padding: 5px; border-radius: 5px; background: #333; color: white;">
+            <option value="" disabled selected>Cargando...</option>
+          </select>
+        </div>
+      </header>
+      
+  <h2>Películas valoradas por el usuario</h2>
+  <div id="mensaje-valoradas"></div>
+  <div class="recomendaciones-container" id="valoradas"></div>
+      
+
+  <h1>Películas Recomendadas</h1>
+  <div id="mensaje"></div>
+  <div class="recomendaciones-container" id="recomendaciones"></div>
+
+  <h2>Basadas en otros usuarios</h2>
+  <div id="mensaje-colab"></div>
+  <div class="recomendaciones-container" id="recomendaciones-colab"></div>
+
+  <script>
+    const apiKey = '9d1bbbbde65732d68b3d9fafccd663c3';
+    const selector = document.getElementById('selector-usuario');
+  
+    // Traer lista de usuarios
+    fetch("http://localhost:5000/usuarios")
+      .then(res => res.json())
+      .then(usuarios => {
+        selector.innerHTML = '<option value="" disabled selected>Selecciona un usuario</option>';
+        usuarios.forEach(user => {
+          const opt = document.createElement('option');
+          opt.value = user;
+          opt.innerText = user;
+          selector.appendChild(opt);
+        });
+  
+        const saved = localStorage.getItem('usuario');
+        if (saved && usuarios.includes(saved)) {
+          selector.value = saved;
+          cargarRecomendaciones(saved);
+        }
+  
+        selector.addEventListener('change', () => {
+          const seleccionado = selector.value;
+          localStorage.setItem('usuario', seleccionado);
+          cargarRecomendaciones(seleccionado);
+        });
+      });
+  
+    function cargarRecomendaciones(usuario) {
+      const contenedor1 = document.getElementById('recomendaciones');
+      const contenedor2 = document.getElementById('recomendaciones-colab');
+      const mensaje1 = document.getElementById('mensaje');
+      const mensaje2 = document.getElementById('mensaje-colab');
+  
+      contenedor1.innerHTML = '';
+      contenedor2.innerHTML = '';
+      mensaje1.innerText = '';
+      mensaje2.innerText = '';
+  
+      // CONTENIDO-BASED
+      fetch(`http://localhost:5000/recomendar?usuario=${usuario}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            mensaje1.innerText = data.error;
+            return;
+          }
+  
+          data.forEach(pelicula => {
+            fetch(`https://api.themoviedb.org/3/movie/${pelicula.id}?api_key=${apiKey}&language=es-ES`)
+              .then(res => res.json())
+              .then(info => {
+                const card = crearCard(info);
+                contenedor1.appendChild(card);
+              });
+          });
+        });
+  
+      // COLABORATIVE-BASED
+      fetch(`http://localhost:5000/recomendar_colaborativo?usuario=${usuario}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            mensaje2.innerText = data.error;
+            return;
+          }
+  
+          data.forEach(pelicula => {
+            fetch(`https://api.themoviedb.org/3/movie/${pelicula.id}?api_key=${apiKey}&language=es-ES`)
+              .then(res => res.json())
+              .then(info => {
+                const card = crearCard(info);
+                contenedor2.appendChild(card);
+              });
+          });
+        });
+
+        //CHORO DE CHAT para ver que peliculas ya rateo
+        fetch(`http://localhost:5000/valoradas?usuario=${usuario}`)
+        .then(res => res.json())
+        .then(data => {
+        const contenedor = document.getElementById('valoradas');
+        const mensaje = document.getElementById('mensaje-valoradas');
+
+        contenedor.innerHTML = '';
+        mensaje.innerText = '';
+
+        if (data.error) {
+            mensaje.innerText = data.error;
+            return;
+        }
+
+        if (data.length === 0) {
+            mensaje.innerText = "Este usuario aún no ha valorado películas.";
+            return;
+        }
+
+        data.forEach(pelicula => {
+            fetch(`https://api.themoviedb.org/3/movie/${pelicula.id}?api_key=${apiKey}&language=es-ES`)
+            .then(res => res.json())
+            .then(info => {
+                const card = document.createElement('div');
+                card.className = 'movie-card';
+
+                const estrellas = '★'.repeat(pelicula.rating) + '☆'.repeat(5 - pelicula.rating);
+
+                card.innerHTML = `
+                <img src="https://image.tmdb.org/t/p/w500${info.poster_path}" alt="${info.title}">
+                <h3>${info.title}</h3>
+                <p style="margin-top: 5px;">${estrellas}</p>
+                `;
+                card.onclick = () => {
+                window.location.href = `detalle.html?id=${pelicula.id}`;
+                };
+
+                contenedor.appendChild(card);
+            });
+        });
+        });
+
+    
+    }
+  
+    function crearCard(info) {
+      const card = document.createElement('div');
+      card.className = 'movie-card';
+      card.innerHTML = `
+        <img src="https://image.tmdb.org/t/p/w500${info.poster_path}" alt="${info.title}">
+        <h3>${info.title}</h3>
+      `;
+      card.onclick = () => {
+        window.location.href = `detalle.html?id=${info.id}`;
+      };
+      return card;
+    }
+  </script>
+  
+</body>
+</html>
